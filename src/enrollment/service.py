@@ -91,6 +91,48 @@ class EnrollmentService:
         self.audit.log(actor, "user_updated", f"user:{user_id}", details=d)
         return self.get_user(user_id)
 
+    def delete_biometric_data(self, user_id, modality=None, actor="operator"):
+        """Delete enrolled biometric samples for one user without deleting the user profile.
+
+        modality may be face, voice, fingerprint, or None (all three).
+        """
+        user = self.get_user(user_id)
+        if user is None:
+            raise KeyError(user_id)
+        allowed = ("face", "voice", "fingerprint")
+        modalities = allowed if modality is None else (modality,)
+        if any(item not in allowed for item in modalities):
+            raise ValueError("modality must be face, voice, fingerprint, or None")
+
+        user_root = (self.base / user["participant_id"]).resolve()
+        if self.base.resolve() not in user_root.parents:
+            raise RuntimeError("refusing to delete outside the dataset directory")
+
+        deleted_files = 0
+        deleted_records = 0
+        for item in modalities:
+            folder = (user_root / item).resolve()
+            if user_root not in folder.parents:
+                raise RuntimeError("refusing to delete outside the participant directory")
+            if folder.exists():
+                deleted_files += sum(1 for path in folder.rglob("*") if path.is_file())
+                shutil.rmtree(folder)
+            deleted_records += self.db.count(
+                "enrollment_samples", "user_id=? AND modality=?", (user["id"], item)
+            )
+            self.db.execute(
+                "DELETE FROM enrollment_samples WHERE user_id=? AND modality=?",
+                (user["id"], item),
+            )
+
+        self.audit.log(
+            actor, "biometric_data_deleted", f"user:{user['username']}",
+            details={"modalities": list(modalities), "files_deleted": deleted_files,
+                     "sample_records_deleted": deleted_records},
+        )
+        return {"files_deleted": deleted_files, "sample_records_deleted": deleted_records,
+                "modalities": list(modalities), "username": user["username"]}
+
     def delete_user(self, user_id, actor="operator"):
         """Deletes biometric files + enrolment records; pseudonymises history. Models trained earlier may still encode the user -> retrain."""
         user = self.get_user(user_id)
