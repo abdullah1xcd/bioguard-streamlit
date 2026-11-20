@@ -49,6 +49,7 @@ def render(P):
         "Delete enrolled face photos, voice recordings, fingerprint images, and their "
         "enrollment records. User profiles and the application remain in place."
     )
+    delete_password_ok = _delete_password_is_valid()
     users = P.enrollment.list_users()
     if not users:
         st.info("No enrolled users are available.")
@@ -81,7 +82,7 @@ def render(P):
                     disabled=not confirmed,
                     use_container_width=True,
                 ):
-                    if not _delete_password_is_valid():
+                    if not delete_password_ok:
                         st.error("Administrator password is required.")
                     else:
                         try:
