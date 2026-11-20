@@ -1,0 +1,32 @@
+# BioGuard-X v4 - focused multimodal biometric stack
+numpy>=1.26,<3
+pandas>=2.1
+scipy>=1.11
+scikit-learn>=1.4,<2
+scikit-image>=0.22
+opencv-python>=4.10,<5
+
+# FACE: SCRFD/InsightFace + ArcFace, optional YOLO face detector
+insightface==2.1
+onnxruntime>=1.18
+ultralytics==8.4.215
+
+# FINGERPRINT: dedicated AFIS/minutiae matching + quality support
+# `afis` exposes MINDTCT/SAFIS/NBIS paths and NFIQ2-style quality.
+afis>=1.2.7,<2
+# Portable Python fallback if AFIS native components are unavailable.
+fingerprint-recognition==2.1.0
+
+# VOICE: pretrained ECAPA-TDNN speaker embeddings
+speechbrain>=1.0,<2
+torch>=2.2,<3
+torchaudio>=2.2,<3
+librosa>=0.10
+soundfile>=0.12
+sounddevice>=0.5
+
+# APP / EVALUATION
+streamlit>=1.33
+matplotlib>=3.8
+joblib>=1.3
+pytest>=8
