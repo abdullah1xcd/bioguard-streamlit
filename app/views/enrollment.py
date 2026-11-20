@@ -62,19 +62,18 @@ def render(P):
 
     if ok:
         try:
+            u = P.enrollment.enroll(name, role, consent, actor=op)
+            if faces:
+                P.enrollment.add_samples(u["id"], "face", [(f.name, f.getvalue()) for f in faces], actor=op, session=1)
+            if fingerprints:
+                P.enrollment.add_samples(u["id"], "fingerprint", [(f.name, f.getvalue()) for f in fingerprints], actor=op, session=1)
+            if voices:
+                P.enrollment.add_samples(u["id"], "voice", [(f.name, f.getvalue()) for f in voices], actor=op, session=1)
+            P.sync_faces()
+            st.success(f"Profile created successfully for {name}.")
             if not any([faces, fingerprints, voices]):
-                st.warning("Select at least one biometric sample before creating the profile.")
-            else:
-                u = P.enrollment.enroll(name, role, consent, actor=op)
-                if faces:
-                    P.enrollment.add_samples(u["id"], "face", [(f.name, f.getvalue()) for f in faces], actor=op, session=1)
-                if fingerprints:
-                    P.enrollment.add_samples(u["id"], "fingerprint", [(f.name, f.getvalue()) for f in fingerprints], actor=op, session=1)
-                if voices:
-                    P.enrollment.add_samples(u["id"], "voice", [(f.name, f.getvalue()) for f in voices], actor=op, session=1)
-                P.sync_faces()
-                st.success(f"Profile created successfully for {name}.")
-                show_status(P, name)
+                st.info("The profile is ready. Add biometric samples from the management section when available.")
+            show_status(P, name)
         except Exception as exc:
             show_safe_error(exc, "We couldn't create this profile. Check the username, consent, and uploaded files.")
 
