@@ -29,6 +29,7 @@ def show_safe_error(exc, message="The operation could not be completed. Please c
 
 
 def _quality_guidance(img):
+    import cv2
     import numpy as np
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     brightness = float(gray.mean())
