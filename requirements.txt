@@ -26,7 +26,8 @@ soundfile>=0.12
 sounddevice>=0.5
 
 # APP / EVALUATION
-streamlit>=1.33
+# st.navigation and st.Page are required by app/main.py.
+streamlit>=1.36
 matplotlib>=3.8
 joblib>=1.3
 pytest>=8
