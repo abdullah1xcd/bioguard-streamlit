@@ -1,0 +1,3 @@
+# Recommended baseline for BioGuard-X v4.
+# Use Python 3.13 for the widest compatibility with PyTorch/SpeechBrain on Windows.
+-r requirements.txt
