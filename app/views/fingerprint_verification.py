@@ -1,24 +1,36 @@
 import streamlit as st
-from app.common import fingerprint_input
+from app.common import fingerprint_input, show_safe_error, show_verification_result
 
 
 def render(P):
     st.title("Fingerprint Verification")
+    st.caption("Compare a submitted fingerprint with the selected enrolled profile.")
     users = [u for u in P.enrollment.list_users() if u["status"] == "active"]
     if not users:
-        st.info("Enroll a user first."); return
-    user = st.selectbox("Claimed identity", [u["username"] for u in users])
-    st.caption("Primary matcher: AFIS/SourceAFIS-style minutiae matching via the `afis` package. The older HOG/LBP classifier is no longer used.")
+        st.info("No active profiles are enrolled yet. Start with User Enrollment.")
+        return
+
+    user = st.selectbox("Who are you verifying?", [u["username"] for u in users])
+    count = len(P._samples(user, "fingerprint"))
+    st.caption(f"Enrolled fingerprint samples: {count}")
+    if count < 1:
+        st.warning("This profile has no fingerprint samples. Add samples in User Enrollment.")
+        return
+
+    st.caption("Matching backend: AFIS / minutiae matching. The legacy HOG/LBP classifier is not used.")
     fp = fingerprint_input()
-    if fp is not None and st.button("Verify fingerprint", type="primary"):
+    if fp is not None and st.button("Verify fingerprint", type="primary", use_container_width=True):
         try:
             r = P.verify_fingerprint(user, fp)
-            (st.success if r["accepted"] else st.error)("ACCEPTED" if r["accepted"] else "REJECTED")
-            if r.get("score") is not None:
-                st.metric("Match score", f"{r['score']:.2f}")
-            st.json(r)
-            P.record_attempt(user, "fingerprint-only", r["accepted"], fingerprint_score=r.get("score"), reason=r.get("reason", ""),
-                             vresults=[{"modality": "fingerprint", "model": r.get("backend", "afis"), "score": r.get("score"),
-                                        "threshold": r.get("threshold"), "accepted": int(r["accepted"]), "latency_ms": r.get("ms")}])
-        except Exception as e:
-            st.error(f"{type(e).__name__}: {e}")
+            show_verification_result(r, "Fingerprint", "Match score", ".2f")
+            P.record_attempt(
+                user, "fingerprint-only", r["accepted"],
+                fingerprint_score=r.get("score"), reason=r.get("reason", ""),
+                vresults=[{
+                    "modality": "fingerprint", "model": r.get("backend", "afis"),
+                    "score": r.get("score"), "threshold": r.get("threshold"),
+                    "accepted": int(r["accepted"]), "latency_ms": r.get("ms"),
+                }],
+            )
+        except Exception as exc:
+            show_safe_error(exc, "Fingerprint verification could not be completed. Check the uploaded image and try again.")
