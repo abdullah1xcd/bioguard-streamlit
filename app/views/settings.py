@@ -9,7 +9,10 @@ BIOMETRIC_MODALITIES = {
 
 
 def _delete_password_is_valid():
-    configured = st.secrets.get("BIOMETRIC_DELETE_PASSWORD", "")
+    try:
+        configured = st.secrets.get("BIOMETRIC_DELETE_PASSWORD", "")
+    except Exception:
+        configured = ""
     if not configured:
         st.warning(
             "Biometric deletion is locked. Configure BIOMETRIC_DELETE_PASSWORD "
