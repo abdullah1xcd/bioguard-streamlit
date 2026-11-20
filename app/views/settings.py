@@ -8,25 +8,6 @@ BIOMETRIC_MODALITIES = {
 }
 
 
-def _delete_password_is_valid():
-    try:
-        configured = st.secrets.get("BIOMETRIC_DELETE_PASSWORD", "")
-    except Exception:
-        configured = ""
-    if not configured:
-        st.warning(
-            "Biometric deletion is locked. Configure BIOMETRIC_DELETE_PASSWORD "
-            "in the Streamlit app Secrets before using this feature."
-        )
-        return False
-    entered = st.text_input(
-        "Administrator password",
-        type="password",
-        key="biometric_delete_admin_password",
-    )
-    return bool(entered) and entered == configured
-
-
 def _refresh_after_face_delete(P):
     # Rebuild the face gallery so deleted embeddings disappear from memory and disk cache.
     P.sync_faces()
@@ -52,7 +33,10 @@ def render(P):
         "Delete enrolled face photos, voice recordings, fingerprint images, and their "
         "enrollment records. User profiles and the application remain in place."
     )
-    delete_password_ok = _delete_password_is_valid()
+    st.warning(
+        "Deletion is available without an administrator password. Anyone who can access "
+        "this page can permanently delete biometric data. Confirmation is still required."
+    )
     users = P.enrollment.list_users()
     if not users:
         st.info("No enrolled users are available.")
@@ -85,23 +69,20 @@ def render(P):
                     disabled=not confirmed,
                     use_container_width=True,
                 ):
-                    if not delete_password_ok:
-                        st.error("Administrator password is required.")
-                    else:
-                        try:
-                            result = P.enrollment.delete_biometric_data(
-                                selected["id"], modality=modality, actor="admin"
-                            )
-                            if modality == "face":
-                                _refresh_after_face_delete(P)
-                            st.success(
-                                f'Deleted {result["files_deleted"]} {label.lower()} files '
-                                f'and {result["sample_records_deleted"]} enrollment records '
-                                f'for {result["username"]}.'
-                            )
-                            st.rerun()
-                        except Exception as exc:
-                            st.error(f"Could not delete {label.lower()} data: {exc}")
+                    try:
+                        result = P.enrollment.delete_biometric_data(
+                            selected["id"], modality=modality, actor="admin"
+                        )
+                        if modality == "face":
+                            _refresh_after_face_delete(P)
+                        st.success(
+                            f'Deleted {result["files_deleted"]} {label.lower()} files '
+                            f'and {result["sample_records_deleted"]} enrollment records '
+                            f'for {result["username"]}.'
+                        )
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Could not delete {label.lower()} data: {exc}")
 
         st.subheader("Delete all three biometric modalities for one participant")
         confirm_one = st.checkbox(
@@ -114,22 +95,19 @@ def render(P):
             disabled=not confirm_one,
             key=f'delete_all_one_{selected["id"]}',
         ):
-            if not delete_password_ok:
-                st.error("Administrator password is required.")
-            else:
-                try:
-                    result = P.enrollment.delete_biometric_data(
-                        selected["id"], actor="admin"
-                    )
-                    _refresh_after_face_delete(P)
-                    st.success(
-                        f'Deleted {result["files_deleted"]} biometric files and '
-                        f'{result["sample_records_deleted"]} enrollment records for '
-                        f'{result["username"]}. The participant profile was kept.'
-                    )
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Could not delete biometric data: {exc}")
+            try:
+                result = P.enrollment.delete_biometric_data(
+                    selected["id"], actor="admin"
+                )
+                _refresh_after_face_delete(P)
+                st.success(
+                    f'Deleted {result["files_deleted"]} biometric files and '
+                    f'{result["sample_records_deleted"]} enrollment records for '
+                    f'{result["username"]}. The participant profile was kept.'
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Could not delete biometric data: {exc}")
 
         st.divider()
         st.subheader("Delete biometric data for EVERY participant")
@@ -148,26 +126,23 @@ def render(P):
             disabled=not confirm_everyone,
             key="delete_all_participants_biometrics",
         ):
-            if not delete_password_ok:
-                st.error("Administrator password is required.")
-            else:
-                try:
-                    totals = {"files": 0, "records": 0}
-                    for user in P.enrollment.list_users():
-                        result = P.enrollment.delete_biometric_data(
-                            user["id"], actor="admin"
-                        )
-                        totals["files"] += result["files_deleted"]
-                        totals["records"] += result["sample_records_deleted"]
-                    _refresh_after_face_delete(P)
-                    st.success(
-                        f'Deleted {totals["files"]} biometric files and '
-                        f'{totals["records"]} enrollment records across all participants. '
-                        "Participant profiles were kept."
+            try:
+                totals = {"files": 0, "records": 0}
+                for user in P.enrollment.list_users():
+                    result = P.enrollment.delete_biometric_data(
+                        user["id"], actor="admin"
                     )
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Biometric cleanup was incomplete: {exc}")
+                    totals["files"] += result["files_deleted"]
+                    totals["records"] += result["sample_records_deleted"]
+                _refresh_after_face_delete(P)
+                st.success(
+                    f'Deleted {totals["files"]} biometric files and '
+                    f'{totals["records"]} enrollment records across all participants. '
+                    "Participant profiles were kept."
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Biometric cleanup was incomplete: {exc}")
 
     st.divider()
     st.subheader("Installed backends")
