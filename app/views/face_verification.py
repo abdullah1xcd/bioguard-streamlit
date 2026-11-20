@@ -55,7 +55,6 @@ def render(P):
                 user, "face-only", r["accepted"], 1,
                 face_score=r.get("score"), reason=r.get("reason") or "face-only",
                 face_detected=r.get("face_detected"),
-                face_quality_ok=r.get("quality", {}).get("ok", True),
             )
         except Exception as exc:
             show_safe_error(exc, "Face verification could not be completed. Check the image and try again.")
