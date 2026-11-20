@@ -111,7 +111,7 @@ def render(P):
             disabled=not confirm_one,
             key=f'delete_all_one_{selected["id"]}',
         ):
-            if not _delete_password_is_valid():
+            if not delete_password_ok:
                 st.error("Administrator password is required.")
             else:
                 try:
@@ -145,7 +145,7 @@ def render(P):
             disabled=not confirm_everyone,
             key="delete_all_participants_biometrics",
         ):
-            if not _delete_password_is_valid():
+            if not delete_password_ok:
                 st.error("Administrator password is required.")
             else:
                 try:
