@@ -11,6 +11,10 @@ from src.face.engine import FaceEngine, FaceNotFound, l2n
 from src.face.quality import assess_face_quality
 
 
+# Bump when face detection/quality logic changes so cached sample decisions are recomputed.
+FACE_DETECTION_CACHE_VERSION = 2
+
+
 def quality_cfg(cfg=FACE_CFG):
     return {"min_face_px": cfg["min_face_px"], "min_sharpness": cfg["min_sharpness"], "brightness": cfg["brightness"],
             "min_contrast": 15.0, "max_abs_yaw": cfg["max_abs_yaw"], "min_image_px": 80}
@@ -63,7 +67,7 @@ class FaceGallery:
         cache = self._load(); files = cache["files"]; changed = False; seen = set()
         for uname, pid in users.items():
             for p in self.photos(pid):
-                key = str(p); seen.add(key); st = p.stat(); sig = (st.st_mtime_ns, st.st_size)
+                key = str(p); seen.add(key); st = p.stat(); sig = (st.st_mtime_ns, st.st_size, FACE_DETECTION_CACHE_VERSION)
                 if key in files and files[key]["sig"] == sig:
                     continue
                 img = cv2.imread(key, cv2.IMREAD_COLOR)
