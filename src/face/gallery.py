@@ -12,7 +12,7 @@ from src.face.quality import assess_face_quality
 
 
 # Bump when face detection/quality logic changes so cached sample decisions are recomputed.
-FACE_DETECTION_CACHE_VERSION = 3
+FACE_DETECTION_CACHE_VERSION = 4
 
 
 def quality_cfg(cfg=FACE_CFG):
@@ -72,10 +72,24 @@ class FaceGallery:
                     continue
                 img = cv2.imread(key, cv2.IMREAD_COLOR)
                 if img is None:
-                    files[key] = {"sig": sig, "emb": None, "ok": False, "reasons": ["unreadable_image"]}
+                    files[key] = {"sig": sig, "emb": None, "ok": False, "reasons": ["unreadable_image"],
+                                  "diagnostics": {"image_size": None, "face_box": None, "face_px": None,
+                                                  "detector": None, "det_score": None, "metrics": {}}}
                 else:
                     emb, info = self.assess(img)
-                    files[key] = {"sig": sig, "emb": emb, "ok": bool(info["ok"] and emb is not None), "reasons": info["reasons"]}
+                    files[key] = {"sig": sig, "emb": emb, "ok": bool(info["ok"] and emb is not None),
+                                   "reasons": info["reasons"],
+                                   "diagnostics": {
+                                       "image_size": (
+                                           f"{info.get('metrics', {}).get('image_w', img.shape[1])}x"
+                                           f"{info.get('metrics', {}).get('image_h', img.shape[0])}"
+                                       ),
+                                       "face_box": info.get("box"),
+                                       "face_px": info.get("metrics", {}).get("face_px"),
+                                       "detector": info.get("detector"),
+                                       "det_score": info.get("det_score"),
+                                       "metrics": info.get("metrics", {}),
+                                   }}
                 changed = True
         for key in [k for k in files if k not in seen]:      # photo or user deleted
             del files[key]; changed = True
@@ -104,7 +118,22 @@ class FaceGallery:
                 if not e["ok"]:
                     for r in e["reasons"] or ["rejected"]:
                         bad[r] = bad.get(r, 0) + 1
+            diagnostics = []
+            for path in self.photos(pid):
+                entry = files.get(str(path), {})
+                detail = entry.get("diagnostics", {})
+                diagnostics.append({
+                    "file": path.name,
+                    "status": "usable" if entry.get("ok") else "rejected",
+                    "reasons": ", ".join(entry.get("reasons", [])),
+                    "image_size": detail.get("image_size"),
+                    "face_px": detail.get("face_px"),
+                    "face_box": detail.get("face_box"),
+                    "detector": detail.get("detector"),
+                    "det_score": detail.get("det_score"),
+                })
             out[uname] = {"photos": len(ps), "usable": len(self._emb.get(uname, [])), "rejected_reasons": bad,
+                          "diagnostics": diagnostics,
                           "ready": len(self._emb.get(uname, [])) >= self.cfg["min_enroll_images"]}
         return out
 
