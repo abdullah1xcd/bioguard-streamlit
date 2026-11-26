@@ -127,9 +127,8 @@ class FaceEngine:
         return {"box": tuple(float(v) for v in bboxes[i, :4]), "landmarks": kpss[i].astype(np.float32),
                 "det_score": float(bboxes[i, 4]), "detector": "scrfd"}
 
-    def detect(self, img):
-        """-> dict(box=(x1,y1,x2,y2), landmarks(5,2), det_score, detector) of the best face, or None."""
-        bgr = to_bgr(img)
+    def _detect_once(self, bgr):
+        """Run the configured detector once on an image in its current coordinate space."""
         mode = self.cfg["detector"]
         if self.has_insightface():
             if mode in ("auto", "yolo") and (mode == "yolo" or self.has_yolo()):
@@ -137,6 +136,7 @@ class FaceEngine:
                 if d is not None:
                     return d
             return self._detect_scrfd(bgr)
+
         det, _ = self._load_sface()                    # OpenCV fallback
         det.setInputSize((bgr.shape[1], bgr.shape[0]))
         _, faces = det.detect(bgr)
@@ -145,6 +145,45 @@ class FaceEngine:
         f = np.asarray(faces)[int(np.argmax(np.asarray(faces)[:, 2] * np.asarray(faces)[:, 3] * np.asarray(faces)[:, -1]))]
         return {"box": (float(f[0]), float(f[1]), float(f[0] + f[2]), float(f[1] + f[3])), "landmarks": np.asarray(f[4:14], np.float32).reshape(5, 2),
                 "det_score": float(f[-1]), "detector": "yunet", "_row": f}
+
+    @staticmethod
+    def _map_detection_to_original(detection, scale):
+        """Map a detection made on an enlarged image back to original-image coordinates."""
+        d = dict(detection)
+        d["box"] = tuple(float(v) / scale for v in d["box"])
+        d["landmarks"] = np.asarray(d["landmarks"], dtype=np.float32) / scale
+        # YuNet's alignCrop consumes its raw detection row, not the separate landmarks.
+        if "_row" in d:
+            row = np.asarray(d["_row"], dtype=np.float32).copy()
+            row[:14] /= scale
+            d["_row"] = row
+        d["detector"] = f"{d['detector']}+upscaled"
+        return d
+
+    def detect(self, img):
+        """Detect the best face; retry at 2x/3x when small source images defeat the detector.
+
+        Detection coordinates are always returned in the original image's coordinate space,
+        so quality checks and embedding alignment continue to use the unmodified source image.
+        """
+        bgr = to_bgr(img)
+        detection = self._detect_once(bgr)
+        if detection is not None:
+            return detection
+
+        # FEI and other research face sets often contain small grayscale portraits. Grayscale
+        # is already converted to BGR by to_bgr(); enlarging only affects detection, not quality
+        # assessment or the image passed to the recogniser.
+        h, w = bgr.shape[:2]
+        if min(h, w) < 480:
+            for scale in (2.0, 3.0):
+                enlarged = cv2.resize(
+                    bgr, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
+                )
+                detection = self._detect_once(enlarged)
+                if detection is not None:
+                    return self._map_detection_to_original(detection, scale)
+        return None
 
     # ------------------------------------------------------------------ embedding
     def embed(self, img, detection=None):
