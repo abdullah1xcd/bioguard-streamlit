@@ -12,12 +12,12 @@ from src.face.quality import assess_face_quality
 
 
 # Bump when face detection/quality logic changes so cached sample decisions are recomputed.
-FACE_DETECTION_CACHE_VERSION = 2
+FACE_DETECTION_CACHE_VERSION = 3
 
 
 def quality_cfg(cfg=FACE_CFG):
     return {"min_face_px": cfg["min_face_px"], "min_sharpness": cfg["min_sharpness"], "brightness": cfg["brightness"],
-            "min_contrast": 15.0, "max_abs_yaw": cfg["max_abs_yaw"], "min_image_px": 80}
+            "min_contrast": 15.0, "max_abs_yaw": cfg["max_abs_yaw"], "min_image_px": 60}
 
 
 def xyxy_to_xywh(b):
