@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import streamlit as st
-from src.config import FINGERPRINT_UPLOAD_TYPES
+FINGERPRINT_UPLOAD_TYPES = ("jpg", "jpeg", "png", "bmp", "tif", "tiff")
 
 
 @st.cache_resource
