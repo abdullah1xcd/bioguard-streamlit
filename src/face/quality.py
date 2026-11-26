@@ -1,9 +1,9 @@
 """Face sample quality gate. A bad sample is REJECTED WITH A REASON instead of being silently
-treated as a normal biometric sample.  Thresholds: src.config.QUALITY['face'] (UNVALIDATED defaults -
+treated as a normal biometric sample. Thresholds: src.config.QUALITY['face'] (UNVALIDATED defaults -
 tune them on TRAIN-split statistics with scripts.audit_dataset, never on test results).
 
 Covers: no face, tiny face / low resolution, blur, too dark / too bright, low contrast, extreme pose
-(only when YuNet landmarks are supplied).  NOT covered: occlusion (glasses/mask/hand) - needs a
+(only when YuNet landmarks are supplied). NOT covered: occlusion (glasses/mask/hand) - needs a
 dedicated model; reported as a limitation."""
 import cv2
 import numpy as np
@@ -15,7 +15,7 @@ _STD = 128  # crop size used for size-independent sharpness
 
 def yaw_ratio(landmarks) -> float:
     """Head-yaw proxy from 5 YuNet landmarks [eye_R, eye_L, nose, mouth_R, mouth_L] (image coordinates):
-    (nose_x - eye_midpoint_x) / inter-ocular distance.  ~0 frontal, sign = direction in the image."""
+    (nose_x - eye_midpoint_x) / inter-ocular distance. ~0 frontal, sign = direction in the image."""
     lm = np.asarray(landmarks, dtype=np.float64).reshape(5, 2)
     eye_dist = abs(lm[1, 0] - lm[0, 0])
     if eye_dist < 1e-6:
@@ -24,8 +24,11 @@ def yaw_ratio(landmarks) -> float:
 
 
 def assess_face_quality(img, box=None, landmarks=None, cfg=None) -> dict:
-    """Returns {"ok": bool, "reasons": [...], "metrics": {...}, "box": (x,y,w,h)|None}.
-    box/landmarks may come from YuNet; otherwise the Haar detector is used."""
+    """Return quality decision and metrics for the ORIGINAL image.
+
+    Face-box dimensions are kept as floats for threshold comparison; integer truncation
+    previously turned a valid 60.0 px detector box into 59 px in some cases.
+    """
     cfg = cfg or QUALITY["face"]
     reasons, m = [], {}
     try:
@@ -41,13 +44,21 @@ def assess_face_quality(img, box=None, landmarks=None, cfg=None) -> dict:
     if box is None:
         reasons.append("no_face_detected")
         return {"ok": False, "reasons": reasons, "metrics": m, "box": None}
-    x, y, bw, bh = [int(v) for v in box]
-    x, y = max(x, 0), max(y, 0)
-    crop = gray[y:y + bh, x:x + bw]
+
+    x, y, bw, bh = (float(v) for v in box)
+    # Measure the visible detector box in original-image coordinates, without
+    # truncating fractional widths/heights before applying min_face_px.
+    visible_w = max(0.0, min(x + bw, float(w)) - max(x, 0.0))
+    visible_h = max(0.0, min(y + bh, float(h)) - max(y, 0.0))
+    x0, y0 = max(int(np.floor(x)), 0), max(int(np.floor(y)), 0)
+    x1 = min(int(np.ceil(x + bw)), w)
+    y1 = min(int(np.ceil(y + bh)), h)
+    crop = gray[y0:y1, x0:x1]
     if crop.size == 0:
         return {"ok": False, "reasons": reasons + ["no_face_detected"], "metrics": m, "box": None}
-    m["face_px"] = int(min(bw, bh))
-    if min(bw, bh) < cfg["min_face_px"]:
+
+    m["face_px"] = float(min(visible_w, visible_h))
+    if min(visible_w, visible_h) < cfg["min_face_px"]:
         reasons.append("face_too_small")
     std = cv2.resize(crop, (_STD, _STD))
     m["sharpness"] = float(cv2.Laplacian(std, cv2.CV_64F).var())
@@ -66,7 +77,8 @@ def assess_face_quality(img, box=None, landmarks=None, cfg=None) -> dict:
         m["yaw"] = yaw_ratio(landmarks)
         if abs(m["yaw"]) > cfg["max_abs_yaw"]:
             reasons.append("extreme_pose")
-    return {"ok": not reasons, "reasons": reasons, "metrics": m, "box": (x, y, bw, bh)}
+    return {"ok": not reasons, "reasons": reasons, "metrics": m,
+            "box": (x0, y0, x1 - x0, y1 - y0)}
 
 
 def dhash(img, size: int = 8) -> int:
