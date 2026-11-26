@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import streamlit as st
+from src.config import FINGERPRINT_UPLOAD_TYPES
 
 
 @st.cache_resource
@@ -73,7 +74,7 @@ def fingerprint_input(label="Fingerprint"):
     import numpy as np
 
     st.caption("Upload a clear fingerprint image. Keep the ridge pattern visible and avoid glare or heavy cropping.")
-    up = st.file_uploader("Upload fingerprint (PNG/JPG/TIFF)", type=["png", "jpg", "jpeg", "tif", "tiff"], key=f"{label}_upload")
+    up = st.file_uploader("Upload fingerprint (BMP/PNG/JPG/TIFF)", type=list(FINGERPRINT_UPLOAD_TYPES), key=f"{label}_upload")
     if not up:
         return None
     img = cv2.imdecode(np.frombuffer(up.getvalue(), np.uint8), cv2.IMREAD_GRAYSCALE)
