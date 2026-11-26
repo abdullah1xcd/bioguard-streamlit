@@ -1,7 +1,6 @@
 import streamlit as st
-from app.common import df, operator, show_safe_error
+from app.common import FINGERPRINT_UPLOAD_TYPES, df, operator, show_safe_error
 from src.security.permissions import ROLES
-from src.config import FINGERPRINT_UPLOAD_TYPES
 
 
 ROLE_GUIDANCE = {
