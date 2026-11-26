@@ -24,6 +24,10 @@ def show_status(P, name):
         if fs["rejected_reasons"]:
             with st.expander("Why some face photos were rejected"):
                 st.write(", ".join(f"{k.replace('_', ' ')} × {v}" for k, v in fs["rejected_reasons"].items()))
+                details = fs.get("diagnostics", [])
+                if details:
+                    st.caption("Per-image measurements from the currently running face-quality pipeline.")
+                    st.dataframe(details, use_container_width=True, hide_index=True)
     c1, c2 = st.columns(2)
     c1.metric("Fingerprint samples", len(P._samples(name, "fingerprint")))
     c2.metric("Voice samples", len(P._samples(name, "voice")))
