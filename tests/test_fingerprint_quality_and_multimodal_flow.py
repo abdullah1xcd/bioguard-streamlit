@@ -27,7 +27,7 @@ def test_verification_attempts_matching_when_nfiq2_is_low():
     matcher.backend = "afis-safis"
     matcher._nfiq2 = lambda _image: 22
     calls = []
-    matcher.score = lambda probe, candidate: calls.append((probe, candidate)) or 55.0
+    matcher._score_with_diagnostics = lambda probe, candidate: (calls.append((probe, candidate)) or 55.0, {"test": True})
 
     image = _fingerprint_image()
     result = matcher.verify(image, [image.copy()])
@@ -66,3 +66,31 @@ def test_multimodal_runs_voice_even_when_fingerprint_fails():
     assert result["fingerprint"]["accepted"] is False
     assert result["voice"]["accepted"] is True
     assert result["failed_modalities"] == ["fingerprint"]
+
+
+
+def test_afis_diagnostics_report_identical_pixels_and_minutiae(monkeypatch):
+    matcher = FingerprintMatcher(threshold=40.0)
+    matcher.backend = "afis-safis"
+    matcher._nfiq2 = lambda _image: 22
+
+    class Template:
+        def __init__(self, count):
+            self.minutiae = [object() for _ in range(count)]
+
+    class MatchResult:
+        score = 1.0
+        decision = "reject"
+
+    matcher._afis_template = lambda _image: Template(37)
+    matcher._match_templates = lambda *_args, **_kwargs: MatchResult()
+
+    image = _fingerprint_image()
+    score, diagnostics = matcher._score_with_diagnostics(image, image.copy())
+
+    assert score == 1.0
+    assert diagnostics["identical_decoded_pixels"] is True
+    assert diagnostics["probe_template"]["minutiae_count"] == 37
+    assert diagnostics["candidate_template"]["minutiae_count"] == 37
+    assert diagnostics["matcher"] == "safis"
+    assert diagnostics["matcher_raw_score"] == "1.0"
