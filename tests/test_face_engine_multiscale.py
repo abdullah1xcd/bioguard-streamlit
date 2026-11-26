@@ -75,4 +75,4 @@ def test_upscaled_yunet_row_is_mapped_for_embedding(monkeypatch):
 
     result = engine.detect(np.zeros((200, 180), dtype=np.uint8))
 
-    np.testing.assert_allclose(result["_row"], np.arange(15, dtype=np.float32))
+    np.testing.assert_allclose(result["_row"], np.array([*range(14), 28], dtype=np.float32))
