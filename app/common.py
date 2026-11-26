@@ -10,8 +10,22 @@ FINGERPRINT_UPLOAD_TYPES = ("jpg", "jpeg", "png", "bmp", "tif", "tiff")
 
 @st.cache_resource
 def get_platform():
-    from src.platform import Platform
-    return Platform()
+    """Return a current Platform instance, not a stale class from a hot reload."""
+    import importlib
+    import src.platform as platform_module
+
+    # Streamlit may keep imported modules/resources alive across reruns. Reload
+    # the module if the running class predates a newly added platform operation.
+    if not callable(getattr(platform_module.Platform, "clear_verification_data", None)):
+        platform_module = importlib.reload(platform_module)
+
+    platform = platform_module.Platform()
+    if not callable(getattr(platform, "clear_verification_data", None)):
+        raise RuntimeError(
+            "The deployed BioGuard-X code is outdated: Platform.clear_verification_data "
+            "is missing. Redeploy the latest main branch and reboot the app."
+        )
+    return platform
 
 
 def df(rows, cols=None):
