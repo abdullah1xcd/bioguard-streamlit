@@ -10,6 +10,7 @@ a match. Basic image validity checks remain enforced.
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import os
 import tempfile
 
@@ -106,13 +107,47 @@ class FingerprintMatcher:
         finally:
             Path(name).unlink(missing_ok=True)
 
-    def score(self, probe: np.ndarray, candidate: np.ndarray) -> float:
+    @staticmethod
+    def _image_fingerprint(image: np.ndarray) -> dict:
+        """Describe decoded pixels without exposing or logging biometric image data."""
+        arr = np.ascontiguousarray(image)
+        return {
+            "shape": list(arr.shape),
+            "dtype": str(arr.dtype),
+            "pixel_sha256": hashlib.sha256(arr.tobytes()).hexdigest(),
+        }
+
+    @staticmethod
+    def _template_diagnostics(template) -> dict:
+        minutiae = getattr(template, "minutiae", template)
+        try:
+            count = len(minutiae)
+        except (TypeError, AttributeError):
+            count = None
+        reported = getattr(template, "n_minutiae", None)
+        return {
+            "template_type": type(template).__name__,
+            "minutiae_type": type(minutiae).__name__,
+            "minutiae_count": int(reported if reported is not None else count)
+            if reported is not None or count is not None else None,
+        }
+
+    def _score_with_diagnostics(self, probe: np.ndarray, candidate: np.ndarray):
         self._load()
         probe_quality = self.quality(probe)
         if not probe_quality["ok"]:
             raise ValueError(probe_quality["reason"])
         if candidate is None or not isinstance(candidate, np.ndarray) or candidate.size == 0:
             raise ValueError("enrolled fingerprint image is unreadable")
+
+        diagnostics = {
+            "probe_image": self._image_fingerprint(probe),
+            "candidate_image": self._image_fingerprint(candidate),
+        }
+        diagnostics["identical_decoded_pixels"] = (
+            diagnostics["probe_image"]["shape"] == diagnostics["candidate_image"]["shape"]
+            and diagnostics["probe_image"]["pixel_sha256"] == diagnostics["candidate_image"]["pixel_sha256"]
+        )
 
         if self.backend == "afis-safis":
             probe_template = self._afis_template(probe)
@@ -122,7 +157,17 @@ class FingerprintMatcher:
             result = self._match_templates(
                 probe_minutiae, candidate_minutiae, method="safis"
             )
-            value = float(getattr(result, "score", result))
+            raw_score = getattr(result, "score", result)
+            value = float(raw_score)
+            diagnostics.update({
+                "probe_template": self._template_diagnostics(probe_template),
+                "candidate_template": self._template_diagnostics(candidate_template),
+                "matcher": "safis",
+                "matcher_result_type": type(result).__name__,
+                "matcher_raw_score": repr(raw_score)[:160],
+                "matcher_decision": str(getattr(result, "decision", None)),
+                "score_scale_note": "Raw SAFIS score; compare against the configured SAFIS threshold.",
+            })
         else:
             import cv2
 
@@ -134,10 +179,20 @@ class FingerprintMatcher:
                 if not cv2.imwrite(str(candidate_path), candidate):
                     raise ValueError("could not encode enrolled fingerprint")
                 result = self._fallback(str(probe_path), str(candidate_path))
-                value = float(getattr(result, "score", result))
+                raw_score = getattr(result, "score", result)
+                value = float(raw_score)
+                diagnostics.update({
+                    "matcher": "fingerprint-recognition",
+                    "matcher_result_type": type(result).__name__,
+                    "matcher_raw_score": repr(raw_score)[:160],
+                })
 
         if not np.isfinite(value):
             raise ValueError("fingerprint matcher returned a non-finite score")
+        return value, diagnostics
+
+    def score(self, probe: np.ndarray, candidate: np.ndarray) -> float:
+        value, _diagnostics = self._score_with_diagnostics(probe, candidate)
         return value
 
     def verify(self, probe: np.ndarray, candidates: list[np.ndarray]) -> dict:
@@ -180,8 +235,9 @@ class FingerprintMatcher:
                 "error": None,
             }
             try:
-                value = self.score(probe, candidate)
+                value, match_diagnostics = self._score_with_diagnostics(probe, candidate)
                 diagnostic["score"] = value
+                diagnostic["match_diagnostics"] = match_diagnostics
                 scores.append(value)
             except Exception as exc:
                 diagnostic["error"] = str(exc)
