@@ -3,12 +3,12 @@ import re
 import shutil
 import uuid
 from pathlib import Path
-from src.config import AUDIO_EXTS, DATASET_DIR, IMAGE_EXTS
+from src.config import AUDIO_EXTS, DATASET_DIR, FINGERPRINT_EXTS, IMAGE_EXTS
 from src.security.permissions import ROLES
 from src.utils.timeutil import iso
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{2,32}$")
-EXTS = {"face": IMAGE_EXTS, "voice": AUDIO_EXTS, "fingerprint": IMAGE_EXTS, "commands": AUDIO_EXTS}
+EXTS = {"face": IMAGE_EXTS, "voice": AUDIO_EXTS, "fingerprint": FINGERPRINT_EXTS, "commands": AUDIO_EXTS}
 PSEUDONYMISED = ("auth_attempts", "challenges", "speech_commands", "security_events", "agent_analyses", "scrutiny")
 
 
