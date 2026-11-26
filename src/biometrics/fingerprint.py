@@ -10,7 +10,6 @@ a match. Basic image validity checks remain enforced.
 from __future__ import annotations
 
 from pathlib import Path
-import hashlib
 import os
 import tempfile
 
@@ -110,11 +109,10 @@ class FingerprintMatcher:
     @staticmethod
     def _image_fingerprint(image: np.ndarray) -> dict:
         """Describe decoded pixels without exposing or logging biometric image data."""
-        arr = np.ascontiguousarray(image)
+        arr = np.asarray(image)
         return {
             "shape": list(arr.shape),
             "dtype": str(arr.dtype),
-            "pixel_sha256": hashlib.sha256(arr.tobytes()).hexdigest(),
         }
 
     @staticmethod
@@ -144,9 +142,8 @@ class FingerprintMatcher:
             "probe_image": self._image_fingerprint(probe),
             "candidate_image": self._image_fingerprint(candidate),
         }
-        diagnostics["identical_decoded_pixels"] = (
-            diagnostics["probe_image"]["shape"] == diagnostics["candidate_image"]["shape"]
-            and diagnostics["probe_image"]["pixel_sha256"] == diagnostics["candidate_image"]["pixel_sha256"]
+        diagnostics["identical_decoded_pixels"] = bool(
+            probe.shape == candidate.shape and np.array_equal(probe, candidate)
         )
 
         if self.backend == "afis-safis":
