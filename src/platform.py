@@ -89,25 +89,59 @@ class Platform:
 
     # ---------- multimodal ----------
     def verify_multimodal(self, claimed, face_img, fingerprint_img, wave, liveness=None):
+        """Run all requested modalities independently, then fuse only complete passes."""
         if liveness is not None and not liveness.get("passed", False):
             return {"accepted": False, "mode": "face+fingerprint+voice", "claimed": claimed,
                     "reason": "liveness check failed", "liveness": liveness}
-        fr = self.verify_face(claimed, face_img)
-        if not fr.get("accepted"):
-            return {"accepted": False, "mode": "face+fingerprint+voice", "claimed": claimed,
-                    "reason": "face rejected", "face": fr}
-        fp = self.verify_fingerprint(claimed, fingerprint_img)
-        if not fp.get("accepted"):
-            return {"accepted": False, "mode": "face+fingerprint+voice", "claimed": claimed,
-                    "reason": "fingerprint rejected", "face": fr, "fingerprint": fp}
-        vr = self.verify_voice(claimed, wave)
-        if not vr.get("accepted"):
-            return {"accepted": False, "mode": "face+fingerprint+voice", "claimed": claimed,
-                    "reason": "voice rejected", "face": fr, "fingerprint": fp, "voice": vr}
+
+        def run_modality(name, operation):
+            try:
+                return operation()
+            except Exception as exc:
+                return {
+                    "accepted": False,
+                    "score": None,
+                    "status": "error",
+                    "reason": f"{name} verification error: {exc}",
+                }
+
+        # Do not short-circuit: return diagnostics for every supplied factor.
+        fr = run_modality("face", lambda: self.verify_face(claimed, face_img))
+        fp = run_modality("fingerprint", lambda: self.verify_fingerprint(claimed, fingerprint_img))
+        vr = run_modality("voice", lambda: self.verify_voice(claimed, wave))
+
+        modalities = {"face": fr, "fingerprint": fp, "voice": vr}
+        failed = [
+            name for name, result in modalities.items()
+            if not result.get("accepted", False)
+        ]
+        if failed:
+            details = [
+                f"{name}: {modalities[name].get('reason', 'not accepted')}"
+                for name in failed
+            ]
+            return {
+                "accepted": False,
+                "mode": "face+fingerprint+voice",
+                "claimed": claimed,
+                "face": fr,
+                "fingerprint": fp,
+                "voice": vr,
+                "failed_modalities": failed,
+                "reason": "verification failed — " + "; ".join(details),
+            }
+
         fusion = self.fusion.combine(fr["score"], fp["score"], vr["score"])
-        return {"accepted": fusion["accepted"], "mode": "face+fingerprint+voice", "claimed": claimed,
-                "face": fr, "fingerprint": fp, "voice": vr, **fusion,
-                "reason": "three-modality fusion: " + ("accept" if fusion["accepted"] else "reject")}
+        return {
+            "accepted": fusion["accepted"],
+            "mode": "face+fingerprint+voice",
+            "claimed": claimed,
+            "face": fr,
+            "fingerprint": fp,
+            "voice": vr,
+            **fusion,
+            "reason": "three-modality fusion: " + ("accept" if fusion["accepted"] else "reject"),
+        }
 
     # ---------- compatibility authentication entry point ----------
     def authenticate(self, claimed, face_img, wave=None, action="open_dashboard", challenge_passed=False, liveness=None):

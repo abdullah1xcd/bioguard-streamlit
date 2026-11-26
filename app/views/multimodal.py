@@ -47,6 +47,8 @@ def render(P):
                     else:
                         st.metric(label, "Passed" if part.get("accepted") else "Not passed",
                                   f"Score: {part.get('score', '—')}")
+                        if part.get("reason"):
+                            st.caption(str(part["reason"]).replace("_", " "))
 
             fused = r.get("fused_score")
             threshold = r.get("threshold", P.fusion.decision_threshold)
