@@ -29,6 +29,39 @@ def render(P):
 
     st.info("A successful app launch does not by itself prove biometric accuracy. Use separate enrollment, validation, and test data to evaluate FAR, FRR, EER, and latency.")
 
+    st.markdown("### Verification data management")
+    with st.expander("Clear verification history", expanded=False):
+        st.warning(
+            "This permanently deletes verification attempts and their per-modality results. "
+            "Enrolled users, biometric samples, and audit logs will be preserved."
+        )
+        st.caption(
+            "This app currently has no authenticated admin roles. The confirmation below "
+            "prevents accidental clicks but is not an access-control security boundary."
+        )
+        confirmation = st.text_input(
+            'Type CLEAR VERIFICATION DATA to enable deletion',
+            key="clear_verification_data_phrase",
+        )
+        acknowledged = st.checkbox(
+            "I understand that verification history will be permanently deleted.",
+            key="clear_verification_data_ack",
+        )
+        if st.button(
+            "Delete verification history",
+            type="primary",
+            disabled=(confirmation != "CLEAR VERIFICATION DATA" or not acknowledged),
+            key="clear_verification_data_button",
+        ):
+            deleted = P.clear_verification_data(actor=st.session_state.get("op_name", "local_operator"))
+            st.session_state["clear_verification_data_phrase"] = ""
+            st.session_state["clear_verification_data_ack"] = False
+            st.success(
+                f"Cleared {deleted['attempts']} verification attempts and "
+                f"{deleted['results']} modality result records. Enrolled users and biometric samples were kept."
+            )
+            st.rerun()
+
     st.markdown("### Recent verification activity")
     rows = P.db.fetch(
         "SELECT id,claimed,mode,accepted,face_score,voice_score,fused_score,reason,created_at "
