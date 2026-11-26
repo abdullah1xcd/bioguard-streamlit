@@ -159,6 +159,22 @@ class Platform:
                 "successes": d.count("auth_attempts", "accepted=1"),
                 "failures": d.count("auth_attempts", "accepted=0")}
 
+    def clear_verification_data(self, actor="local_operator"):
+        """Delete verification history while preserving enrollment and the audit trail."""
+        attempts = self.db.count("auth_attempts")
+        results = self.db.count("verification_results")
+        # Child result rows are removed first; enrollment and audit tables are untouched.
+        self.db.execute("DELETE FROM verification_results")
+        self.db.execute("DELETE FROM auth_attempts")
+        self.audit.log(
+            actor,
+            "verification_data_cleared",
+            "auth_attempts+verification_results",
+            "success",
+            {"deleted_attempts": attempts, "deleted_results": results},
+        )
+        return {"attempts": attempts, "results": results}
+
     def authentication_capabilities(self):
         return {
             "face": True,
