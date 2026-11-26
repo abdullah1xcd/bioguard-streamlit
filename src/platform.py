@@ -10,7 +10,7 @@ import time
 import uuid
 import numpy as np
 
-from src.config import BACKUP_DIR, DATASET_DIR, DB_PATH, GALLERY_PATH, GENERATED_REPORTS
+from src.config import BACKUP_DIR, DATASET_DIR, DB_PATH, GALLERY_PATH, GENERATED_REPORTS, FINGERPRINT_EXTS
 from src.database.db import Database
 from src.enrollment.service import EnrollmentService
 from src.face.gallery import FaceGallery
@@ -39,7 +39,7 @@ class Platform:
         if not u:
             return []
         folder = self.dataset_dir / u["participant_id"] / modality
-        exts = {"face": {".jpg", ".jpeg", ".png", ".bmp"}, "fingerprint": {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}, "voice": {".wav"}}[modality]
+        exts = {"face": {".jpg", ".jpeg", ".png", ".bmp"}, "fingerprint": FINGERPRINT_EXTS, "voice": {".wav"}}[modality]
         return sorted(p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in exts) if folder.exists() else []
 
     def face_users(self, ready_only=True):

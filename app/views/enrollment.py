@@ -1,6 +1,7 @@
 import streamlit as st
 from app.common import df, operator, show_safe_error
 from src.security.permissions import ROLES
+from src.config import FINGERPRINT_UPLOAD_TYPES
 
 
 ROLE_GUIDANCE = {
@@ -53,7 +54,7 @@ def render(P):
             faces = st.file_uploader("Face photos · 5+ recommended", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
         with c2:
             st.caption("FINGERPRINT")
-            fingerprints = st.file_uploader("Fingerprint images · 2+ recommended", type=["png", "jpg", "jpeg", "tif", "tiff"], accept_multiple_files=True)
+            fingerprints = st.file_uploader("Fingerprint images · 2+ recommended", type=list(FINGERPRINT_UPLOAD_TYPES), accept_multiple_files=True)
         with c3:
             st.caption("VOICE")
             voices = st.file_uploader("Voice WAVs · 2+ recommended", type=["wav"], accept_multiple_files=True)
@@ -98,7 +99,7 @@ def render(P):
     st.markdown("#### Add more samples")
     c1, c2, c3 = st.columns(3)
     more_f = c1.file_uploader("Additional face photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="add_face")
-    more_p = c2.file_uploader("Additional fingerprints", type=["png", "jpg", "jpeg", "tif", "tiff"], accept_multiple_files=True, key="add_fp")
+    more_p = c2.file_uploader("Additional fingerprints", type=list(FINGERPRINT_UPLOAD_TYPES), accept_multiple_files=True, key="add_fp")
     more_v = c3.file_uploader("Additional voice WAVs", type=["wav"], accept_multiple_files=True, key="add_voice")
     if st.button("Save additional samples", type="primary"):
         try:

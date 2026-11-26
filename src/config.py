@@ -12,6 +12,8 @@ SAMPLE_RATE = 16000
 SEED = 42
 SPLIT = (0.6, 0.2, 0.2)  # train / val / test, per participant
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
+FINGERPRINT_EXTS = IMAGE_EXTS | {".tif", ".tiff"}
+FINGERPRINT_UPLOAD_TYPES = ("jpg", "jpeg", "png", "bmp", "tif", "tiff")
 AUDIO_EXTS = {".wav"}
 N_REFS, N_IMP = 5, 3
 
