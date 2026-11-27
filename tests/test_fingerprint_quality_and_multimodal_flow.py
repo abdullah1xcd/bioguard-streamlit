@@ -133,3 +133,40 @@ def test_safis_score_below_threshold_is_not_overridden_by_positive_decision():
     assert result["score"] == 1.0
     assert result["threshold"] == 40.0
     assert result["status"] == "no_match"
+
+
+
+def test_safis_native_positive_decision_accepts_normalized_score():
+    matcher = FingerprintMatcher(threshold=40.0)
+    matcher.backend = "afis-safis"
+    matcher._nfiq2 = lambda _image: 22
+    matcher._score_with_diagnostics = lambda _probe, _candidate: (
+        1.0,
+        {"matcher_decision_bool": True},
+    )
+
+    image = _fingerprint_image()
+    result = matcher.verify(image, [image.copy()])
+
+    assert result["accepted"] is True
+    assert result["score"] == 1.0
+    assert result["decision_method"] == "safis_native"
+    assert result["threshold_applied"] is False
+
+
+def test_safis_native_negative_decision_rejects_even_if_score_is_high():
+    matcher = FingerprintMatcher(threshold=40.0)
+    matcher.backend = "afis-safis"
+    matcher._nfiq2 = lambda _image: 22
+    matcher._score_with_diagnostics = lambda _probe, _candidate: (
+        100.0,
+        {"matcher_decision_bool": False},
+    )
+
+    image = _fingerprint_image()
+    result = matcher.verify(image, [image.copy()])
+
+    assert result["accepted"] is False
+    assert result["score"] == 100.0
+    assert result["decision_method"] == "safis_native"
+    assert result["threshold_applied"] is False
