@@ -162,7 +162,14 @@ class FingerprintMatcher:
                 "matcher_result_type": type(result).__name__,
                 "matcher_raw_score": repr(raw_score)[:160],
                 "matcher_decision": str(getattr(result, "decision", None)),
-                "score_scale_note": "SafisExtractor.match score; compare against the configured SAFIS threshold.",
+                "matcher_decision_bool": (
+                    getattr(result, "decision")
+                    if isinstance(getattr(result, "decision", None), (bool, np.bool_))
+                    else None
+                ),
+                "score_scale_note": (
+                    "SAFIS MatchResult exposes its own boolean decision; its score is not on the configured 0-100 threshold scale."
+                ),
             })
         else:
             import cv2
@@ -222,6 +229,7 @@ class FingerprintMatcher:
 
         candidate_diagnostics = []
         scores = []
+        native_decisions = []
         for index, candidate in enumerate(candidates):
             candidate_quality = self.quality(candidate)
             diagnostic = {
@@ -235,6 +243,9 @@ class FingerprintMatcher:
                 diagnostic["score"] = value
                 diagnostic["match_diagnostics"] = match_diagnostics
                 scores.append(value)
+                native_decision = match_diagnostics.get("matcher_decision_bool")
+                if isinstance(native_decision, (bool, np.bool_)):
+                    native_decisions.append(bool(native_decision))
             except Exception as exc:
                 diagnostic["error"] = str(exc)
             candidate_diagnostics.append(diagnostic)
@@ -250,10 +261,23 @@ class FingerprintMatcher:
             }
 
         best = max(scores)
-        accepted = best >= self.threshold
+        # SAFIS MatchResult.score is normalized (e.g. 1.0), while its
+        # explicit decision already applies the matcher's own calibrated rule.
+        # Comparing that normalized score with SourceAFIS's 0-100 threshold
+        # would reject even an identical image that SAFIS marks as a match.
+        if self.backend == "afis-safis" and native_decisions:
+            accepted = any(native_decisions)
+            decision_method = "safis_native"
+            threshold_applied = False
+        else:
+            accepted = best >= self.threshold
+            decision_method = "numeric_threshold"
+            threshold_applied = True
         return {
             **base,
             "accepted": accepted,
+            "decision_method": decision_method,
+            "threshold_applied": threshold_applied,
             "score": best,
             "status": "matched" if accepted else "no_match",
             "candidate_count": len(candidates),
