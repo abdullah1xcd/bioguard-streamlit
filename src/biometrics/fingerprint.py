@@ -31,10 +31,9 @@ class FingerprintMatcher:
         if self.backend:
             return
         try:
-            from afis import SafisExtractor, match_templates, compute_nfiq2
+            from afis import SafisExtractor, compute_nfiq2
 
             self._processor = SafisExtractor()
-            self._match_templates = match_templates
             self._nfiq2 = compute_nfiq2
             self.backend = "afis-safis"
             return
@@ -149,11 +148,11 @@ class FingerprintMatcher:
         if self.backend == "afis-safis":
             probe_template = self._afis_template(probe)
             candidate_template = self._afis_template(candidate)
-            probe_minutiae = getattr(probe_template, "minutiae", probe_template)
-            candidate_minutiae = getattr(candidate_template, "minutiae", candidate_template)
-            result = self._match_templates(
-                probe_minutiae, candidate_minutiae, method="safis"
-            )
+            # SafisExtractor.match accepts the complete FingerprintTemplate objects.
+            # Passing only their `.minutiae` ndarrays to the generic match_templates
+            # helper bypasses template metadata used by the SAFIS matcher and can
+            # produce a misleading 1.0 score even for an identical image.
+            result = self._processor.match(probe_template, candidate_template)
             raw_score = getattr(result, "score", result)
             value = float(raw_score)
             diagnostics.update({
@@ -163,7 +162,7 @@ class FingerprintMatcher:
                 "matcher_result_type": type(result).__name__,
                 "matcher_raw_score": repr(raw_score)[:160],
                 "matcher_decision": str(getattr(result, "decision", None)),
-                "score_scale_note": "Raw SAFIS score; compare against the configured SAFIS threshold.",
+                "score_scale_note": "SafisExtractor.match score; compare against the configured SAFIS threshold.",
             })
         else:
             import cv2
