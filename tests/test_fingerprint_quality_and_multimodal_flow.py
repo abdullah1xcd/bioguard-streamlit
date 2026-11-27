@@ -79,18 +79,57 @@ def test_afis_diagnostics_report_identical_pixels_and_minutiae(monkeypatch):
             self.minutiae = [object() for _ in range(count)]
 
     class MatchResult:
-        score = 1.0
-        decision = "reject"
+        score = 52.0
+        decision = True
 
+    class SafisProcessor:
+        def __init__(self):
+            self.received_templates = None
+
+        def match(self, probe_template, candidate_template):
+            self.received_templates = (probe_template, candidate_template)
+            return MatchResult()
+
+    matcher._processor = SafisProcessor()
     matcher._afis_template = lambda _image: Template(37)
-    matcher._match_templates = lambda *_args, **_kwargs: MatchResult()
 
     image = _fingerprint_image()
     score, diagnostics = matcher._score_with_diagnostics(image, image.copy())
 
-    assert score == 1.0
+    assert score == 52.0
+    assert matcher._processor.received_templates is not None
+    assert all(isinstance(item, Template) for item in matcher._processor.received_templates)
     assert diagnostics["identical_decoded_pixels"] is True
     assert diagnostics["probe_template"]["minutiae_count"] == 37
     assert diagnostics["candidate_template"]["minutiae_count"] == 37
     assert diagnostics["matcher"] == "safis"
-    assert diagnostics["matcher_raw_score"] == "1.0"
+    assert diagnostics["matcher_raw_score"] == "52.0"
+    assert diagnostics["matcher_decision"] == "True"
+
+
+def test_safis_score_below_threshold_is_not_overridden_by_positive_decision():
+    matcher = FingerprintMatcher(threshold=40.0)
+    matcher.backend = "afis-safis"
+    matcher._nfiq2 = lambda _image: 22
+
+    class Template:
+        minutiae = [object() for _ in range(18)]
+
+    class MatchResult:
+        score = 1.0
+        decision = True
+
+    class SafisProcessor:
+        def match(self, _probe, _candidate):
+            return MatchResult()
+
+    matcher._processor = SafisProcessor()
+    matcher._afis_template = lambda _image: Template()
+
+    image = _fingerprint_image()
+    result = matcher.verify(image, [image.copy()])
+
+    assert result["accepted"] is False
+    assert result["score"] == 1.0
+    assert result["threshold"] == 40.0
+    assert result["status"] == "no_match"
